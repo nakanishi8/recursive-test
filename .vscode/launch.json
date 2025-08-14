@@ -18,5 +18,21 @@
                 "0"
             ]
         },
+        {
+            "name": "Directory Crawler Selenium",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/directory_crawler_selenium.py",
+            "console": "integratedTerminal",
+            "args": [
+                "http://ftp.uk.debian.org/debian/",
+                "--max-depth",
+                "3",
+                "--delay",
+                "0",
+                "--selector",
+                "a"
+            ]
+        },
     ]
 }

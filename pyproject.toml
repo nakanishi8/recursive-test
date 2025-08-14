@@ -1,13 +1,15 @@
 [project]
-name = "pytor"
+name = "recursive-test"
 version = "0.1.0"
-description = "Add your description here"
+description = "A tool for recursively crawling directory listings"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
     "argparse>=1.4.0",
     "bs4>=0.0.2",
     "logging>=0.4.9.6",
+    "selenium>=4.32.0",
+    "requests>=2.32.3",
 ]
 
 [dependency-groups]
