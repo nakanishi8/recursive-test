@@ -15,7 +15,12 @@ import logging
 import time
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (
+    ElementClickInterceptedException,
+    NoSuchElementException,
+    StaleElementReferenceException,
+    TimeoutException,
+)
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -55,42 +60,31 @@ class TreeCrawlerSelenium:
         self.files_found = 0
         self.errors_count = 0
 
-    def wait_for_tree(self):
-        """ツリー表示が読み込まれるまで待機"""
+    def wait_for_tree(self, max_retry=3):
+        """ツリー表示が読み込まれるまで待機（Timeout時はリトライ）"""
+        # selector = "div.disclosured__elements > table.companies__table > tbody tr td"
         selector = "div.overflow.active div.news__modal div.disclosured__table div.disclosured__elements table.companies__table tbody tr td"
-        # selector = (
-        #     "div.overflow.active > div.news__modal > div.disclosured__table > div.disclosured__elements > table.companies__table > tbody tr td",
-        # )
-        try:
-            WebDriverWait(self.driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-            time.sleep(self.delay)
-        except TimeoutException:
-            logging.error("ツリー表示の待機セレクタが見つかりませんでした")
-            self.errors_count += 1
-            return False
-        return True
+        for attempt in range(1, max_retry + 1):
+            try:
+                WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                time.sleep(self.delay)
+                return True
+            except TimeoutException:
+                logging.warning(f"ツリー表示の待機セレクタが見つかりませんでした（{attempt}回目）")
+                self.errors_count += 1
+                if attempt < max_retry:
+                    time.sleep(1)
+        return False
 
     def wait_for_click_tree(self, prev_tr_count=None):
         # tbody内のtr数が変化するまで待つ
-        tbody_selector = "div.overflow.active div.news__modal div.disclosured__elements table.companies__table tbody"
         try:
             # 1. tr数が減るまで待つ
             WebDriverWait(self.driver, 10).until(
-                lambda d: len(d.find_elements(By.CSS_SELECTOR, f"{tbody_selector} tr")) < prev_tr_count
+                lambda d: len(d.find_elements(By.CSS_SELECTOR, self.selector)) < prev_tr_count
             )
             # 2. tr数が減ったあと、再び増えるまで待つ
-            WebDriverWait(self.driver, 10).until(
-                lambda d: len(d.find_elements(By.CSS_SELECTOR, f"{tbody_selector} tr")) > 1
-            )
-            # if prev_tr_count is not None:
-            #     # tr数が変化するまで待つ
-            #     WebDriverWait(self.driver, 10).until(
-            #         lambda d: len(d.find_elements(By.CSS_SELECTOR, f"{tbody_selector} tr")) != prev_tr_count
-            #     )
-            # # trが2つ以上になるまで待つ（ヘッダー＋データ行）
-            # WebDriverWait(self.driver, 10).until(
-            #     lambda d: len(d.find_elements(By.CSS_SELECTOR, f"{tbody_selector} tr")) >= 2
-            # )
+            WebDriverWait(self.driver, 10).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, self.selector)) > 1)
             time.sleep(self.delay)
         except TimeoutException:
             logging.error("ツリー表示の待機セレクタが見つかりませんでした")
@@ -111,7 +105,9 @@ class TreeCrawlerSelenium:
     def get_tree_rows(self):
         return self.driver.find_elements(By.CSS_SELECTOR, self.selector)
 
-    def crawl_tree(self, depth=0):
+    def crawl_tree(self, depth=0, path=None):
+        if path is None:
+            path = []
         if depth >= self.max_depth:
             logging.info(f"Max depth {self.max_depth} reached. Skipping further recursion.")
             return
@@ -120,54 +116,87 @@ class TreeCrawlerSelenium:
             logging.info("ツリーに有効な行がありません")
             return
         prev_tr_count = len(rows)
-        # for i, row in enumerate(rows, start=1):
         index = 0
         while index < len(rows):
-            row = rows[index]
-            tds = row.find_elements(By.TAG_NAME, "td")
-            if not tds or len(tds) < 3:
-                continue
-            name = tds[0].text.strip()
-            type_ = tds[2].text.strip()
-            index += 1
-            if depth == 0:
-                # トップ階層: 2行目以降がフォルダ/ファイル
-                if type_ == "Folder":
-                    items_logger.info(f"DIRECTORY: {name}")
-                    self.dirs_found += 1
-                    # フォルダをクリックして遷移
-                    tds[0].click()
-                    if self.wait_for_click_tree(prev_tr_count):
-                        self.crawl_tree(depth + 1)
-                        # 戻る（Backボタンをクリック）
-                        back_row = self.driver.find_element(
-                            By.CSS_SELECTOR,
-                            "div.disclosured__elements > table.companies__table > tbody > tr:nth-child(2)",
-                        )
-                        back_row.click()
-                        self.wait_for_click_tree(prev_tr_count)
-                elif type_ == "File":
-                    items_logger.info(f"FILE: {name}")
-                    self.files_found += 1
-            else:
-                # トップ以外の階層: 2行目はBackボタン
-                if index == 1:
+            try:
+                row = rows[index]
+                tds = row.find_elements(By.TAG_NAME, "td")
+                if not tds or len(tds) < 3:
                     continue
-                if type_ == "Folder":
-                    items_logger.info(f"DIRECTORY: {name}")
-                    self.dirs_found += 1
-                    tds[0].click()
-                    if self.wait_for_click_tree(prev_tr_count):
-                        self.crawl_tree(depth + 1)
-                        back_row = self.driver.find_element(
-                            By.CSS_SELECTOR,
-                            "div.disclosured__elements > table.companies__table > tbody > tr:nth-child(2)",
-                        )
-                        back_row.click()
-                        self.wait_for_click_tree(prev_tr_count)
-                elif type_ == "File":
-                    items_logger.info(f"FILE: {name}")
-                    self.files_found += 1
+
+                # self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", tds[0])
+                # self.driver.execute_script("window.scrollTo(0, arguments[0].offsetTop);", tds[0])
+                scroll_target = self.driver.find_element(By.CSS_SELECTOR, "div.disclosured__table")
+                max_scroll = self.driver.execute_script(
+                    "return arguments[0].scrollHeight - arguments[0].clientHeight;", scroll_target
+                )
+                current_scroll = self.driver.execute_script("return arguments[0].scrollTop;", scroll_target)
+                target_offset = self.driver.execute_script("return arguments[0].offsetTop;", tds[0])
+                scroll_value = min(target_offset, max_scroll)
+                print(f"max_scroll: {max_scroll}, target_offset: {target_offset}, scroll_value: {scroll_value}")
+
+                if current_scroll != target_offset:
+                    # self.driver.execute_script(
+                    #     "arguments[0].scrollTop = arguments[1].offsetTop;", scroll_target, tds[0]
+                    # )
+                    self.driver.execute_script("arguments[0].scrollTop = arguments[1];", scroll_target, target_offset)
+                    after_scroll = self.driver.execute_script("return arguments[0].scrollTop;", scroll_target)
+                    items_logger.info(f"scrollTop before: {current_scroll}, after: {after_scroll} index: {index}")
+
+                name = tds[0].text.strip()
+                type_ = tds[2].text.strip()
+                index += 1
+                current_path = path + [name]
+                full_path = "/".join(current_path)
+                if depth == 0:
+                    # トップ階層: 2行目以降がフォルダ/ファイル
+                    if type_ == "Folder":
+                        items_logger.info(f"DIRECTORY: {full_path}")
+                        self.dirs_found += 1
+                        # フォルダをクリックして遷移
+                        WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(tds[0])).click()
+                        if self.wait_for_click_tree(prev_tr_count):
+                            self.crawl_tree(depth + 1, current_path)
+                            # 戻る（Backボタンをクリック）
+                            back_row = self.driver.find_element(
+                                By.CSS_SELECTOR,
+                                "div.disclosured__elements > table.companies__table > tbody > tr:nth-child(2)",
+                            )
+                            back_row.click()
+                            self.wait_for_click_tree(prev_tr_count)
+                    elif type_ == "File":
+                        items_logger.info(f"FILE: {full_path}")
+                        self.files_found += 1
+                    else:
+                        items_logger.warning(f"Unknown type: {full_path}")
+                else:
+                    # トップ以外の階層: 2行目はBackボタン
+                    if index == 1:
+                        continue
+                    if type_ == "Folder":
+                        items_logger.info(f"DIRECTORY: {full_path}")
+                        self.dirs_found += 1
+                        WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(tds[0])).click()
+                        if self.wait_for_click_tree(prev_tr_count):
+                            self.crawl_tree(depth + 1, current_path)
+                            back_row = self.driver.find_element(
+                                By.CSS_SELECTOR,
+                                "div.disclosured__elements > table.companies__table > tbody > tr:nth-child(2)",
+                            )
+                            back_row.click()
+                            self.wait_for_click_tree(prev_tr_count)
+                    elif type_ == "File":
+                        items_logger.info(f"FILE: {full_path}")
+                        self.files_found += 1
+
+            except ElementClickInterceptedException:
+                items_logger.warning(f"Element click intercepted: {full_path}")
+                self.errors_count += 1
+
+            except StaleElementReferenceException:
+                rows = self.get_tree_rows()
+                if index >= len(rows):
+                    break
 
     def start(self, url):
         logging.info("=" * 60)
@@ -186,8 +215,6 @@ class TreeCrawlerSelenium:
                 )
             )
             view_btn.click()
-            # WebDriverWait(self.driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            # if self.click_view_button():
             if self.wait_for_tree():
                 self.crawl_tree()
         except KeyboardInterrupt:
