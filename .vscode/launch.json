@@ -19,7 +19,7 @@
             ]
         },
         {
-            "name": "Directory Crawler Selenium",
+            "name": "Selenium Directory Crawler ",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/directory_crawler_selenium.py",
@@ -32,6 +32,23 @@
                 "0",
                 "--selector",
                 "a"
+            ]
+        },
+        {
+            "name": "Selenium Tree Crawler ",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tree_crawler_selenium.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--url",
+                "http://lynxblogtwatfsrwj3oatpejwxk5bngqcd5f7s26iskagfu7ouaomjad.onion/leaks/687fa16dcc2d2d4e68d84c81",
+                "--max-depth",
+                "3",
+                "--delay",
+                "0",
+                "--selector",
+                "div.disclosured__elements > table.companies__table > tbody > tr:nth-child(n+2)"
             ]
         },
     ]
