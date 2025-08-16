@@ -17,7 +17,6 @@ import time
 from selenium import webdriver
 from selenium.common.exceptions import (
     ElementClickInterceptedException,
-    NoSuchElementException,
     StaleElementReferenceException,
     TimeoutException,
 )
@@ -53,6 +52,7 @@ class TreeCrawlerSelenium:
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--window-size=1600,1024")
         chrome_options.add_argument("--proxy-server=socks5://127.0.0.1:9050")
         self.driver = webdriver.Chrome(options=chrome_options)
         self.visited = set()
@@ -62,7 +62,6 @@ class TreeCrawlerSelenium:
 
     def wait_for_tree(self, max_retry=3):
         """ツリー表示が読み込まれるまで待機（Timeout時はリトライ）"""
-        # selector = "div.disclosured__elements > table.companies__table > tbody tr td"
         selector = "div.overflow.active div.news__modal div.disclosured__table div.disclosured__elements table.companies__table tbody tr td"
         for attempt in range(1, max_retry + 1):
             try:
@@ -92,15 +91,15 @@ class TreeCrawlerSelenium:
             return False
         return True
 
-    def click_view_button(self, view_btn):
-        try:
-            view_btn.click()
-            logging.info("Viewボタンをクリックしました")
-            return True
-        except NoSuchElementException:
-            logging.error("Viewボタンが見つかりませんでした")
-            self.errors_count += 1
-            return False
+    # def click_view_button(self, view_btn):
+    #     try:
+    #         view_btn.click()
+    #         logging.info("Viewボタンをクリックしました")
+    #         return True
+    #     except NoSuchElementException:
+    #         logging.error("Viewボタンが見つかりませんでした")
+    #         self.errors_count += 1
+    #         return False
 
     def get_tree_rows(self):
         return self.driver.find_elements(By.CSS_SELECTOR, self.selector)
@@ -124,24 +123,12 @@ class TreeCrawlerSelenium:
                 if not tds or len(tds) < 3:
                     continue
 
-                # self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", tds[0])
-                # self.driver.execute_script("window.scrollTo(0, arguments[0].offsetTop);", tds[0])
                 scroll_target = self.driver.find_element(By.CSS_SELECTOR, "div.disclosured__table")
-                max_scroll = self.driver.execute_script(
-                    "return arguments[0].scrollHeight - arguments[0].clientHeight;", scroll_target
-                )
                 current_scroll = self.driver.execute_script("return arguments[0].scrollTop;", scroll_target)
                 target_offset = self.driver.execute_script("return arguments[0].offsetTop;", tds[0])
-                scroll_value = min(target_offset, max_scroll)
-                print(f"max_scroll: {max_scroll}, target_offset: {target_offset}, scroll_value: {scroll_value}")
 
                 if current_scroll != target_offset:
-                    # self.driver.execute_script(
-                    #     "arguments[0].scrollTop = arguments[1].offsetTop;", scroll_target, tds[0]
-                    # )
                     self.driver.execute_script("arguments[0].scrollTop = arguments[1];", scroll_target, target_offset)
-                    after_scroll = self.driver.execute_script("return arguments[0].scrollTop;", scroll_target)
-                    items_logger.info(f"scrollTop before: {current_scroll}, after: {after_scroll} index: {index}")
 
                 name = tds[0].text.strip()
                 type_ = tds[2].text.strip()
