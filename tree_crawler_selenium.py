@@ -44,7 +44,7 @@ items_logger.propagate = False
 
 
 class TreeCrawlerSelenium:
-    def __init__(self, delay=1.0, selector=None, max_depth=3):
+    def __init__(self, delay=1.0, selector=None, max_depth=None):
         self.delay = delay
         self.selector = selector or "div.disclosured__elements > table.companies__table > tbody > tr"
         self.max_depth = max_depth
@@ -91,23 +91,13 @@ class TreeCrawlerSelenium:
             return False
         return True
 
-    # def click_view_button(self, view_btn):
-    #     try:
-    #         view_btn.click()
-    #         logging.info("Viewボタンをクリックしました")
-    #         return True
-    #     except NoSuchElementException:
-    #         logging.error("Viewボタンが見つかりませんでした")
-    #         self.errors_count += 1
-    #         return False
-
     def get_tree_rows(self):
         return self.driver.find_elements(By.CSS_SELECTOR, self.selector)
 
     def crawl_tree(self, depth=0, path=None):
         if path is None:
             path = []
-        if depth >= self.max_depth:
+        if self.max_depth and depth >= self.max_depth:
             logging.info(f"Max depth {self.max_depth} reached. Skipping further recursion.")
             return
         rows = self.get_tree_rows()
@@ -234,7 +224,7 @@ def main():
     )
     parser.add_argument("--delay", type=float, default=1.0, help="Delay between actions in seconds (default: 1.0)")
     parser.add_argument("--selector", type=str, required=True, help="CSS selector for tree rows")
-    parser.add_argument("--max-depth", type=int, default=3, help="Maximum recursion depth (default: 3)")
+    parser.add_argument("--max-depth", type=int, default=None, help="Maximum recursion depth (default: None)")
     args = parser.parse_args()
     crawler = TreeCrawlerSelenium(delay=args.delay, selector=args.selector, max_depth=args.max_depth)
     crawler.start(args.url)

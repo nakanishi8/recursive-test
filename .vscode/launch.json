@@ -43,8 +43,6 @@
             "args": [
                 "--url",
                 "http://lynxblogtwatfsrwj3oatpejwxk5bngqcd5f7s26iskagfu7ouaomjad.onion/leaks/687fa16dcc2d2d4e68d84c81",
-                "--max-depth",
-                "3",
                 "--delay",
                 "0",
                 "--selector",
