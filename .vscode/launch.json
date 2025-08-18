@@ -45,8 +45,10 @@
                 "http://lynxblogtwatfsrwj3oatpejwxk5bngqcd5f7s26iskagfu7ouaomjad.onion/leaks/687fa16dcc2d2d4e68d84c81",
                 "--delay",
                 "0",
+                "--xpath",
+                "//div[@class=\"detailed__btns\"]/button[normalize-space(text())=\"View\"]",
                 "--selector",
-                "div.disclosured__elements > table.companies__table > tbody > tr:nth-child(n+2)"
+                "div.disclosured__elements > table.companies__table > tbody > tr"
             ]
         },
     ]
